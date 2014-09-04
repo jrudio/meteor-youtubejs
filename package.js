@@ -3,7 +3,7 @@
 Package.describe({
   summary: "Meteor v0.8.3: Use this package to control youtube & locally hosted videos on your site. Credits to eXon(youtubejs) & Brighthouse(videojs)",
   version: "1.0.0",
-  name: "jrudio:youtubejs",
+  name: "jrudio",
   git: "https://github.com/jrudio/meteor-youtubejs.git"
 });
 
