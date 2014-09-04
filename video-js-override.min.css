@@ -1,0 +1,9 @@
+/*Overrride font urls*/
+@font-face{
+  font-family: VideoJS;
+  src:url('/packages/meteor-youtubejs/dist/font/vjs.eot');
+  src:url('/packages/meteor-youtubejs/dist/font/vjs.eot?#iefix') format('embedded-opentype'),
+  url('/packages/meteor-youtubejs/dist/font/vjs.woff') format('woff'),
+  url('/packages/meteor-youtubejs/dist/font/vjs.ttf') format('truetype'),
+  url('/packages/meteor-youtubejs/dist/font/vjs.svg#icomoon') format('svg');
+}
