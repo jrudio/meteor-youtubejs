@@ -1,8 +1,6 @@
-// This packkage is using an older version of video.js - v4.7.3
-// There is an error if it is updated to the latest version
 Package.describe({
-  summary: "Meteor v0.8.3: Use this package to control youtube & locally hosted videos on your site. Credits to eXon(youtubejs) & Brighthouse(videojs)",
-  version: "1.0.0",
+  summary: "Meteor v0.8.3: Videojs v4.9.0; Videojs-Youtube v1.2.6; Use this package to control youtube & locally hosted videos on your site. Credits to eXon(youtubejs) & Brighthouse(videojs)",
+  version: "0.0.2",
   name: "jrudio",
   git: "https://github.com/jrudio/meteor-youtubejs.git"
 });
@@ -10,10 +8,10 @@ Package.describe({
 Package.on_use(function(api){
   api.use(['jquery'], 'client');
   api.add_files([
-  'lib/video-js.min.css',
-  'lib/video.js',
-  'lib/video-js.swf',
-  'lib/youtube.js'
+    'lib/video-js.css',
+    'lib/video.js',
+    'lib/video-js.swf',
+    'lib/youtube.js'
   ], 'client');
 
   api.add_files([
@@ -25,7 +23,5 @@ Package.on_use(function(api){
     isAsset: true
   });
 
-  api.add_files([
-    'video-js-override.min.css'
-  ], 'client');
+  api.add_files('video-js-override.css', 'client');
 });
