@@ -1,27 +1,30 @@
 Package.describe({
-  summary: "Meteor v0.8.3: Videojs v4.9.0; Videojs-Youtube v1.2.6; Use this package to control youtube & locally hosted videos on your site. Credits to eXon(youtubejs) & Brighthouse(videojs)",
-  version: "0.0.2",
-  name: "jrudio",
-  git: "https://github.com/jrudio/meteor-youtubejs.git"
+  summary: 'YouTube playback technology for Video.js; credit to eXon',
+  name: 'jrudio:youtubejs',
+  version: '0.0.4_8'
 });
 
-Package.on_use(function(api){
-  api.use(['jquery'], 'client');
-  api.add_files([
-    'lib/video-js.css',
-    'lib/video.js',
-    'lib/video-js.swf',
-    'lib/youtube.js'
-  ], 'client');
+Npm.depends({
+  path: "0.4.9"
+});
 
-  api.add_files([
-    'dist/font/vjs.eot',
-    'dist/font/vjs.svg',
-    'dist/font/vjs.ttf',
-    'dist/font/vjs.woff'
-  ], 'client', {
-    isAsset: true
-  });
+Package.onUse(function(api) {
+  api.versionsFrom('METEOR@0.9.0');
+  api.use('jquery', 'client');
 
-  api.add_files('video-js-override.css', 'client');
+  var path = Npm.require('path');
+
+  var assetPath = path.join('youtubejs');
+
+  api.addFiles(path.join(assetPath, 'lib', 'video-js.min.css'), 'client');
+  api.addFiles(path.join(assetPath, 'lib', 'video.js'), 'client');
+  api.addFiles(path.join(assetPath, 'lib', 'video-js.swf'), 'client');
+  api.addFiles(path.join(assetPath, 'lib', 'youtube.js'), 'client');
+
+  api.addFiles(path.join(assetPath, 'fonts', 'vjs.eot'), 'client', { isAsset: true });
+  api.addFiles(path.join(assetPath, 'fonts', 'vjs.svg'), 'client', { isAsset: true });
+  api.addFiles(path.join(assetPath, 'fonts', 'vjs.ttf'), 'client', { isAsset: true });
+  api.addFiles(path.join(assetPath, 'fonts', 'vjs.woff'), 'client', { isAsset: true });
+
+  api.addFiles(path.join('video-js-override.css'), 'client');
 });
