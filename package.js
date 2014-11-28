@@ -9,7 +9,7 @@ Npm.depends({
 });
 
 Package.onUse(function(api) {
-  api.versionsFrom('METEOR@0.9.0');
+  api.versionsFrom('1.0');
   api.use('jquery', 'client');
 
   var path = Npm.require('path');
