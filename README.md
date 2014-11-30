@@ -1,3 +1,4 @@
 meteor-youtubejs
 ================
-Credit to eXon https://github.com/eXon  for his youtubejs work on videojs
+
+Meteor package for youtubeJS; a plugin by eXon for videoJS.
