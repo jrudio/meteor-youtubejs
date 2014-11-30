@@ -1,4 +1,4 @@
-meteor-youtubejs
+YouTubeJS for Meteor.js
 ================
 
 Meteor package for youtubejs; a plugin for videojs.
