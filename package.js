@@ -9,7 +9,7 @@ Package.onUse(function(api) {
   api.use('jquery', 'client');
 
   // Depend on my other package 'jrudio:videojs'
-  api.use('jrudio:videojs', 'client');
+  api.use('jrudio:videojs@4.10.2_2', 'client');
 
   var path = Npm.require('path');
 
