@@ -1,15 +1,15 @@
 Package.describe({
   summary: 'YouTube playback technology for Video.js',
   name: 'jrudio:youtubejs', /* Add username to this before publishing */
-  version: '1.2.7'
+  version: '1.2.7_2'
 });
 
 Package.onUse(function(api) {
-  api.versionsFrom('WINDOWS-PREVIEW@0.0.8');
+  api.versionsFrom('WINDOWS-PREVIEW@0.0.10');
   api.use('jquery', 'client');
 
   // Depend on my other package 'jrudio:videojs'
-  api.use('jrudio:videojs@4.10.2_2', 'client');
+  api.use('jrudio:videojs@4.11.1', 'client');
 
   var path = Npm.require('path');
 
