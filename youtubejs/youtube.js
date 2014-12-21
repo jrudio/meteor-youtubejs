@@ -118,8 +118,12 @@
       var self = this;
 
       player.ready(function() {
-        var controlBar = self.playerEl_.querySelectorAll('.vjs-control-bar')[0];
-        controlBar.appendChild(self.qualityButton);
+        if (self.player_.options()['controlBar']) {
+          var controlBar = self.playerEl_.querySelectorAll('.vjs-control-bar')[0];
+          if (controlBar) {
+            controlBar.appendChild(self.qualityButton);
+          }
+        }
 
         if(self.playOnReady && !self.player_.options()['ytcontrols']) {
           if(typeof self.player_.loadingSpinner !== 'undefined') {
@@ -221,11 +225,9 @@
         // Disable the video.js controls if we use the YouTube controls
         this.player_.controls(false);
       } else if(typeof this.player_.poster() === 'undefined' || this.player_.poster().length === 0) {
-        // Don't use player.poster(), it will fail here because the tech is still null in constructor
+        // Wait here because the tech is still null in constructor
         setTimeout(function() {
-          var posterEl = self.playerEl_.querySelectorAll('.vjs-poster')[0];
-          posterEl.style.backgroundImage = 'url(https://img.youtube.com/vi/' + self.videoId + '/0.jpg)';
-          posterEl.style.display = '';
+          self.player_.poster('https://img.youtube.com/vi/' + self.videoId + '/0.jpg');
         }, 100);
       }
 
@@ -422,6 +424,8 @@
   videojs.Youtube.prototype.setCurrentTime = function(seconds) {
     this.ytplayer.seekTo(seconds, true);
     this.player_.trigger('timeupdate');
+    this.player_.trigger('seeking');
+    this.isSeeking = true;
   };
   videojs.Youtube.prototype.duration = function() {
     return (this.ytplayer && this.ytplayer.getDuration) ? this.ytplayer.getDuration() : 0;
@@ -662,12 +666,19 @@
           break;
 
         case YT.PlayerState.PLAYING:
+          this.playerEl_.querySelectorAll('.vjs-poster')[0].style.display = '';
+
           this.playVideoIsAllowed = true;
           this.updateQualities();
           this.player_.trigger('timeupdate');
           this.player_.trigger('durationchange');
           this.player_.trigger('playing');
           this.player_.trigger('play');
+
+          if (this.isSeeking) {
+            this.player_.trigger('seeked');
+            this.isSeeking = false;
+          }
           break;
 
         case YT.PlayerState.PAUSED:
