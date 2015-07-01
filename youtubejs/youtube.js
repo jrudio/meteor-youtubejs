@@ -34,6 +34,8 @@
       // Enable rate changes
       this['featuresPlaybackRate'] = true;
 
+      this['featuresNativeTextTracks'] = true;
+
       videojs.MediaTechController.call(this, player, options, ready);
 
       this.isIos = /(iPad|iPhone|iPod)/g.test( navigator.userAgent );
@@ -55,9 +57,11 @@
         }
       }
 
+      this.player_.options()['playbackRates'] = [];
+
       this.userQuality = videojs.Youtube.convertQualityName(player.options()['quality']);
 
-      this.playerEl_ = document.getElementById(player.id());
+      this.playerEl_ = player.el();
       this.playerEl_.className += ' vjs-youtube';
 
       // Create the Quality button
@@ -112,10 +116,6 @@
       this.parseSrc(player.options()['src']);
 
       this.playOnReady = this.player_.options()['autoplay'] && this.playVideoIsAllowed;
-      this.forceSSL = !!(
-        typeof this.player_.options()['forceSSL'] === 'undefined' ||
-          this.player_.options()['forceSSL'] === true
-        );
       this.forceHTML5 = !!(
         typeof this.player_.options()['forceHTML5'] === 'undefined' ||
           this.player_.options()['forceHTML5'] === true
@@ -181,7 +181,42 @@
     }
   });
 
+  // Tries to get the highest resolution thumbnail available for the video
+  videojs.Youtube.prototype.loadThumbnailUrl = function(id, callback){
+
+    var uri = 'https://img.youtube.com/vi/' + id + '/maxresdefault.jpg';
+    var fallback = 'https://img.youtube.com/vi/' + id + '/0.jpg';
+
+    try{
+      var image = new Image();
+      image.onload = function(){
+        // Onload may still be called if YouTube returns the 120x90 error thumbnail
+        if('naturalHeight' in this){
+          if(this.naturalHeight <= 90 || this.naturalWidth <= 120) {
+            this.onerror();
+            return;
+          }
+        } else if(this.height <= 90 || this.width <= 120) {
+          this.onerror();
+          return;
+        }
+
+        callback(uri);
+      };
+      image.onerror = function(){
+        callback(fallback);
+      };
+      image.src = uri;
+    }
+    catch(e){ callback(fallback); }
+  };
+
   videojs.Youtube.prototype.updateIframeSrc = function() {
+    var fullscreenControls = (
+      typeof this.player_.options()['ytFullScreenControls'] !== 'undefined' &&
+      !this.player_.options()['ytFullScreenControls']
+    ) ? 0 : 1;
+
     var params = {
       enablejsapi: 1,
       /*jshint -W106 */
@@ -191,6 +226,7 @@
       disablekb: 1,
       wmode: 'transparent',
       controls: (this.player_.options()['ytcontrols']) ? 1 : 0,
+      fs: fullscreenControls,
       html5: (this.player_.options()['forceHTML5']) ? 1 : null,
       playsinline: (this.player_.options()['playsInline']) ? 1 : 0,
       showinfo: 0,
@@ -219,25 +255,24 @@
     }
     var self = this;
 
-    if(!this.videoId) {
+    if(!this.videoId && !this.playlistId) {
       this.el_.src = 'about:blank';
       setTimeout(function() {
         self.triggerReady();
       }, 500);
     } else {
-      this.el_.src = (
-        (this.forceSSL || isLocalProtocol) ?
-          'https:'
-          : window.location.protocol
-        ) + '//www.youtube.com/embed/' + this.videoId + '?' + videojs.Youtube.makeQueryString(params);
+      this.el_.src = 'https://www.youtube.com/embed/' +
+                     (this.videoId || 'videoseries') + '?' + videojs.Youtube.makeQueryString(params);
 
       if(this.player_.options()['ytcontrols']) {
         // Disable the video.js controls if we use the YouTube controls
         this.player_.controls(false);
-      } else if(typeof this.player_.poster() === 'undefined' || this.player_.poster().length === 0) {
+      } else if(this.videoId && (typeof this.player_.poster() === 'undefined' || this.player_.poster().length === 0)) {
         // Wait here because the tech is still null in constructor
         setTimeout(function() {
-          self.player_.poster('https://img.youtube.com/vi/' + self.videoId + '/0.jpg');
+          self.loadThumbnailUrl(self.videoId, function(url){
+            self.player_.poster(url);
+          });
         }, 100);
       }
 
@@ -259,9 +294,7 @@
           tag.onerror = function(e) {
             self.onError(e);
           };
-          tag.src = ( !this.forceSSL && !isLocalProtocol ) ?
-            '//www.youtube.com/iframe_api'
-            : 'https://www.youtube.com/iframe_api';
+          tag.src = 'https://www.youtube.com/iframe_api';
           var firstScriptTag = document.getElementsByTagName('script')[0];
           firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
           videojs.Youtube.apiLoading = true;
@@ -349,7 +382,7 @@
 
       if(match !== null && match.length > 1) {
         this.userQuality = match[1];
-        setInnerText(this.qualityTitle, videojs.Youtube.parseQualityName(this.userQuality));
+        videojs.Youtube.appendQualityLabel(this.qualityTitle, this.userQuality);
       }
     }
   };
@@ -378,10 +411,13 @@
           });
         }
 
-        // Update the poster
-        this.playerEl_.querySelectorAll('.vjs-poster')[0].style.backgroundImage =
-          'url(https://img.youtube.com/vi/' + this.videoId + '/0.jpg)';
-        this.player_.poster('https://img.youtube.com/vi/' + this.videoId + '/0.jpg');
+        var self = this;
+        this.loadThumbnailUrl(this.videoId, function(url){
+            // Update the poster
+            self.playerEl_.querySelectorAll('.vjs-poster')[0].style.backgroundImage =
+              'url(' + url + ')';
+            self.player_.poster(url);
+        });
       }
       /* else Invalid URL */
     }
@@ -434,14 +470,37 @@
     return (this.ytplayer && this.ytplayer.getCurrentTime) ? this.ytplayer.getCurrentTime() : 0;
   };
   videojs.Youtube.prototype.setCurrentTime = function(seconds) {
+    if (this.lastState === YT.PlayerState.PAUSED) {
+      this.timeBeforeSeek = this.currentTime();
+    }
+
     this.ytplayer.seekTo(seconds, true);
     this.player_.trigger('timeupdate');
     this.player_.trigger('seeking');
     this.isSeeking = true;
+
+    // A seek event during pause does not return an event to trigger a seeked event,
+    // so run an interval timer to look for the currentTime to change
+    if (this.lastState === YT.PlayerState.PAUSED && this.timeBeforeSeek !== seconds) {
+      this.checkSeekedInPauseInterval = setInterval( videojs.bind(this, function() {
+        if (this.lastState !== YT.PlayerState.PAUSED || !this.isSeeking) {
+          // If something changed while we were waiting for the currentTime to change,
+          //  clear the interval timer
+          clearInterval(this.checkSeekedInPauseInterval);
+        } else if (this.currentTime() !== this.timeBeforeSeek) {
+          this.player_.trigger('timeupdate');
+          this.player_.trigger('seeked');
+          this.isSeeking = false;
+          clearInterval(this.checkSeekedInPauseInterval);
+        }
+      }), 250);
+    }
   };
+
   videojs.Youtube.prototype.playbackRate = function() {
     return (this.ytplayer && this.ytplayer.getPlaybackRate) ? this.ytplayer.getPlaybackRate() : 1.0;
   };
+
   videojs.Youtube.prototype.setPlaybackRate = function(suggestedRate) {
     if (this.ytplayer && this.ytplayer.setPlaybackRate) {
       this.ytplayer.setPlaybackRate(suggestedRate);
@@ -451,12 +510,15 @@
       }, 100);
     }
   };
+
   videojs.Youtube.prototype.duration = function() {
     return (this.ytplayer && this.ytplayer.getDuration) ? this.ytplayer.getDuration() : 0;
   };
+
   videojs.Youtube.prototype.currentSrc = function() {
     return this.srcVal;
   };
+  
   videojs.Youtube.prototype.ended = function() {
     return (this.ytplayer) ? (this.lastState === YT.PlayerState.ENDED) : false;
   };
@@ -596,6 +658,9 @@
     this.isReady_ = true;
     this.triggerReady();
 
+    this.player_.options()['playbackRates'] = this.ytplayer.getAvailablePlaybackRates();
+    this.player_.controlBar.playbackRateMenuButton.update();
+
     this.player_.trigger('loadedmetadata');
 
     // The duration is loaded so we might as well fire off the timeupdate and duration events
@@ -615,10 +680,64 @@
       this.setMuted(true);
     }
 
+    // Set the poster of the first video of the playlist if not specified
+    if (!this.videoId && this.playlistId) {
+      this.videoId = this.ytplayer.getPlaylist()[0];
+        var self = this;
+        this.loadThumbnailUrl(this.videoId, function(url){
+          self.player_.poster(url);
+        });
+    }
+
     // Play ASAP if they clicked play before it's ready
     if(this.playOnReady) {
       this.playOnReady = false;
       this.play();
+    }
+  };
+
+
+  videojs.Youtube.prototype.updateCaptions = function() {
+    this.ytplayer.loadModule('captions');
+    this.ytplayer.loadModule('cc');
+
+    var options = this.ytplayer.getOptions();
+    // The name of the captions module: 'captions' for html5 or 'cc' for flash
+    var cc = options.indexOf('captions') >= 0? 'captions'
+          : (options.indexOf('cc') >= 0? 'cc' : null);
+
+    if(cc !== null && !this.tracked_){
+
+      var tracks = this.ytplayer.getOption(cc, 'tracklist');
+
+      if(tracks && tracks.length > 0){
+
+        var tt;
+        for(var i = 0; i < tracks.length; i++){
+          tt = this.addTextTrack('captions', tracks[i].displayName, tracks[i].languageCode);
+        }
+
+        var self = this;
+        this.textTracks().on('change', function(){
+          var code = null;
+          for(var i = 0; i < this.length; i++){
+            if(this[i].mode === 'showing'){
+              code = this[i].language;
+              break;
+            }
+          }
+
+          if(code !== null){
+            self.ytplayer.setOption(cc, 'track', {'languageCode': code});
+          }
+          else{
+            self.ytplayer.setOption(cc, 'track', {});
+          }
+
+        });
+
+        this.tracked_ = true;
+      }
     }
   };
 
@@ -630,7 +749,7 @@
         self.ytplayer.setPlaybackQuality(quality);
 
         self.userQuality = quality;
-        setInnerText(self.qualityTitle, videojs.Youtube.parseQualityName(quality));
+        videojs.Youtube.appendQualityLabel(self.qualityTitle, quality);
 
         var selected = self.qualityMenuContent.querySelector('.vjs-selected');
         if(selected) {
@@ -645,7 +764,7 @@
     var self = this;
 
     if(qualities.indexOf(this.userQuality) < 0) {
-      setInnerText(self.qualityTitle, videojs.Youtube.parseQualityName(this.defaultQuality));
+      videojs.Youtube.appendQualityLabel(self.qualityTitle, this.defaultQuality);
     }
 
     if(qualities.length === 0) {
@@ -660,13 +779,12 @@
       for(var i = 0; i < qualities.length; ++i) {
         var el = document.createElement('li');
         el.setAttribute('class', 'vjs-menu-item');
-        setInnerText(el, videojs.Youtube.parseQualityName(qualities[i]));
         el.setAttribute('data-val', qualities[i]);
+        videojs.Youtube.appendQualityLabel(el, qualities[i]);
         if(qualities[i] === this.quality) {
           videojs.Youtube.addClass(el, 'vjs-selected');
         }
         setupEventListener(el);
-
 
         this.qualityMenuContent.appendChild(el);
       }
@@ -681,15 +799,26 @@
           break;
 
         case YT.PlayerState.ENDED:
-          // Replace YouTube play button by our own
-          if(!this.player_.options()['ytcontrols']) {
-            this.playerEl_.querySelectorAll('.vjs-poster')[0].style.display = 'block';
-            if(typeof this.player_.bigPlayButton !== 'undefined') {
-              this.player_.bigPlayButton.show();
-            }
+          var stopPlaying = true;
+
+          // Stop the playlist when it is starting over
+          if (this.playlistId && !this.player_.options()['loop']) {
+            stopPlaying = this.ytplayer.getPlaylistIndex() === 0;
           }
 
-          this.player_.trigger('ended');
+          if (stopPlaying) {
+            // Replace YouTube play button by our own
+            if(!this.player_.options()['ytcontrols']) {
+              this.playerEl_.querySelectorAll('.vjs-poster')[0].style.display = 'block';
+              if(typeof this.player_.bigPlayButton !== 'undefined') {
+                this.player_.bigPlayButton.show();
+              }
+            }
+
+            this.player_.trigger('pause');
+            this.player_.trigger('ended');
+          }
+
           break;
 
         case YT.PlayerState.PLAYING:
@@ -697,6 +826,7 @@
 
           this.playVideoIsAllowed = true;
           this.updateQualities();
+          this.updateCaptions();
           this.player_.trigger('timeupdate');
           this.player_.trigger('durationchange');
           this.player_.trigger('playing');
@@ -748,6 +878,12 @@
 
       case '1080p':
         return 'hd1080';
+
+      case '1440p':
+        return 'hd1440';
+
+      case '2160p':
+        return 'hd2160';
     }
 
     return 'auto';
@@ -772,9 +908,36 @@
 
       case 'hd1080':
         return '1080p';
+
+      case 'hd1440':
+        return '1440p';
+
+      case 'hd2160':
+        return '2160p';
     }
 
     return 'auto';
+  };
+
+  videojs.Youtube.appendQualityLabel = function(element, quality) {
+    setInnerText(element, videojs.Youtube.parseQualityName(quality));
+
+    var label = document.createElement('span');
+    label.setAttribute('class', 'vjs-hd-label');
+
+    switch(quality) {
+      case 'hd720':
+      case 'hd1080':
+      case 'hd1440':
+        setInnerText(label, 'HD');
+        element.appendChild(label);
+        break;
+
+      case 'hd2160':
+        setInnerText(label, '4K');
+        element.appendChild(label);
+        break;
+    }
   };
 
   videojs.Youtube.prototype.onPlaybackQualityChange = function(quality) {
@@ -787,7 +950,7 @@
     }
 
     this.quality = quality;
-    setInnerText(this.qualityTitle, videojs.Youtube.parseQualityName(quality));
+    videojs.Youtube.appendQualityLabel(this.qualityTitle, quality);
 
     switch(quality) {
       case 'medium':
@@ -836,12 +999,6 @@
 
   videojs.Youtube.prototype.onError = function(error) {
     this.player_.error(error);
-
-    if(error === 100 || error === 101 || error === 150) {
-      this.player_.bigPlayButton.hide();
-      this.player_.loadingSpinner.hide();
-      this.player_.posterImage.hide();
-    }
   };
 
   /**
@@ -896,7 +1053,7 @@
   }
 
 
-// Stretch the YouTube poster
+  // Stretch the YouTube poster
   var style = document.createElement('style');
   var def = ' ' +
     '.vjs-youtube .vjs-poster { background-size: 100%!important; }' +
